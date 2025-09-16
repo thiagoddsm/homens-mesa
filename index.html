@@ -535,23 +535,22 @@
                         (event.tasks || []).forEach(task => { tasksHtml += `<tr><td class="p-2"><input type="text" value="${task.name}" class="${i} task-name"></td><td class="p-2"><input type="text" value="${task.responsible}" class="${i} task-responsible"></td><td class="p-2"><select class="${i} task-status"><option ${task.status === "Pendente" ? "selected" : ""}>Pendente</option><option ${task.status === "Em andamento" ? "selected" : ""}>Em andamento</option><option ${task.status === "Concluído" ? "selected" : ""}>Concluído</option></select></td><td class="p-2 text-center"><button class="${a} remove-btn">&times;</button></td></tr>`; });
                         return tasksHtml + `</tbody></table></div><div class="mt-4 flex justify-between items-center"><button id="add-task" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg">+ Adicionar Tarefa</button><button id="save-tasks" class="${s}">Salvar Tarefas</button></div>`;
                     case 'finances':
-                        const incomeRows = (event.finances?.income || []).map((item, index) => `<tr><td class="p-1"><input type="text" value="${item.description}" class="${i} income-desc" data-index="${index}"></td><td class="p-1"><input type="number" value="${item.amount.toFixed(2)}" class="${i} income-amount" step="0.01" data-index="${index}"></td><td class="p-1 text-center"><button class="${a} remove-btn" data-type="income" data-index="${index}">&times;</button></td></tr>`).join("");
-                        const expenseRows = (event.finances?.expenses || []).map((item, index) => `
-                            <tr>
-                                <td class="p-1"><input type="text" value="${item.description}" class="${i} expense-desc" data-index="${index}"></td>
-                                <td class="p-1"><input type="number" value="${item.amount.toFixed(2)}" class="${i} expense-amount" step="0.01" data-index="${index}"></td>
-                                <td class="p-1 text-center">
-                                    ${item.receiptUrl ? `<a href="${item.receiptUrl}" target="_blank" class="bg-blue-500 text-white text-xs px-2 py-1 rounded">Ver Recibo</a>` : 
-                                    `<div class="file-input-wrapper">
-                                        <button class="file-input-button">Anexar</button>
-                                        <input type="file" class="receipt-upload" data-index="${index}" accept="image/*,.pdf">
-                                    </div>`}
-                                </td>
-                                <td class="p-1 text-center"><button class="${a} remove-btn" data-type="expense" data-index="${index}">&times;</button></td>
-                            </tr>`).join("");
+                        const incomeRows = (event.finances?.income || []).map((item, index) => {
+                            const linkOrButton = item.proofUrl 
+                                ? `<a href="${item.proofUrl}" target="_blank" class="bg-blue-500 text-white text-xs px-2 py-1 rounded">Ver Anexo</a>` 
+                                : `<div class="file-input-wrapper"><button class="file-input-button">Anexar</button><input type="file" class="file-upload" data-type="income" data-index="${index}" accept="image/*,.pdf"></div>`;
+                            return `<tr><td class="p-1"><input type="text" value="${item.description}" class="${i} income-desc"></td><td class="p-1"><input type="number" value="${item.amount.toFixed(2)}" class="${i} income-amount" step="0.01"></td><td class="p-1 text-center">${linkOrButton}</td><td class="p-1 text-center"><button class="${a} remove-btn">&times;</button></td></tr>`;
+                        }).join("");
+
+                        const expenseRows = (event.finances?.expenses || []).map((item, index) => {
+                             const linkOrButton = item.receiptUrl 
+                                ? `<a href="${item.receiptUrl}" target="_blank" class="bg-blue-500 text-white text-xs px-2 py-1 rounded">Ver Anexo</a>` 
+                                : `<div class="file-input-wrapper"><button class="file-input-button">Anexar</button><input type="file" class="file-upload" data-type="expense" data-index="${index}" accept="image/*,.pdf"></div>`;
+                            return `<tr><td class="p-1"><input type="text" value="${item.description}" class="${i} expense-desc"></td><td class="p-1"><input type="number" value="${item.amount.toFixed(2)}" class="${i} expense-amount" step="0.01"></td><td class="p-1 text-center">${linkOrButton}</td><td class="p-1 text-center"><button class="${a} remove-btn">&times;</button></td></tr>`;
+                        }).join("");
 
                         return `<div class="grid grid-cols-1 md:grid-cols-2 gap-8" id="finances-container">
-                                <div><h3 class="text-xl font-semibold mb-4 text-gray-700 flex justify-between items-center">Entradas <button id="add-income" class="text-sm bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded-full">+</button></h3><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-2">Descrição</th><th class="p-2">Valor (R$)</th><th class="p-2"></th></tr></thead><tbody id="income-body">${incomeRows}</tbody></table></div>
+                                <div><h3 class="text-xl font-semibold mb-4 text-gray-700 flex justify-between items-center">Entradas <button id="add-income" class="text-sm bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded-full">+</button></h3><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-2">Descrição</th><th class="p-2">Valor (R$)</th><th class="p-2">Anexo</th><th class="p-2"></th></tr></thead><tbody id="income-body">${incomeRows}</tbody></table></div>
                                 <div><h3 class="text-xl font-semibold mb-4 text-gray-700 flex justify-between items-center">Saídas <button id="add-expense" class="text-sm bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full">+</button></h3><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-2">Descrição</th><th class="p-2">Valor (R$)</th><th class="p-2">Anexo</th><th class="p-2"></th></tr></thead><tbody id="expense-body">${expenseRows}</tbody></table></div>
                             </div>
                             <div class="mt-8 pt-4 border-t text-right" id="finance-summary"><h3 class="text-2xl font-bold">Saldo do Evento: <span id="event-balance">R$ 0,00</span></h3></div>
@@ -572,33 +571,41 @@
                     const updateFinances = () => { let income = 0, expenses = 0; document.querySelectorAll('.income-amount').forEach(i => income += parseFloat(i.value) || 0); document.querySelectorAll('.expense-amount').forEach(e => expenses += parseFloat(e.value) || 0); const balance = income - expenses; const balanceEl = document.getElementById('event-balance'); balanceEl.textContent = `R$ ${balance.toFixed(2).replace('.', ',')}`; balanceEl.className = balance >= 0 ? 'text-green-600' : 'text-red-600'; };
                     financeContainer.addEventListener('input', updateFinances);
                     financeContainer.addEventListener('change', async (e) => {
-                        if (e.target.classList.contains('receipt-upload')) {
+                        if (e.target.classList.contains('file-upload')) {
                             const file = e.target.files[0];
+                            const type = e.target.dataset.type; // 'income' or 'expense'
                             const index = e.target.dataset.index;
                             if (!file) return;
 
-                            // Ensure the expense item exists
                             if (!event.finances) event.finances = { income: [], expenses: [] };
-                            while (event.finances.expenses.length <= index) {
-                                event.finances.expenses.push({ description: '', amount: 0, receiptUrl: null });
+                            const targetArray = type === 'income' ? event.finances.income : event.finances.expenses;
+                            
+                            while (targetArray.length <= index) {
+                                targetArray.push({ description: '', amount: 0 });
                             }
-                            if(!event.finances.expenses[index]) event.finances.expenses[index] = { description: '', amount: 0, receiptUrl: null };
+                            if(!targetArray[index]) targetArray[index] = { description: '', amount: 0 };
 
 
                             const button = e.target.previousElementSibling;
                             button.textContent = 'Enviando...';
                             button.disabled = true;
 
-                            const filePath = `receipts/${userId}/${event.id}/${Date.now()}_${file.name}`;
+                            const folder = type === 'income' ? 'proofs' : 'receipts';
+                            const filePath = `${folder}/${userId}/${event.id}/${Date.now()}_${file.name}`;
                             const storageRef = ref(storage, filePath);
                             
                             try {
                                 const snapshot = await uploadBytes(storageRef, file);
                                 const downloadURL = await getDownloadURL(snapshot.ref);
                                 
-                                event.finances.expenses[index].receiptUrl = downloadURL;
+                                if (type === 'income') {
+                                    targetArray[index].proofUrl = downloadURL;
+                                } else {
+                                    targetArray[index].receiptUrl = downloadURL;
+                                }
+                                
                                 await saveDataToFirestore();
-                                showToast('Recibo enviado com sucesso!');
+                                showToast('Anexo enviado com sucesso!');
                                 showEventDetail(event.id); // Refresh the view to show the link
                             } catch (error) {
                                 console.error("Upload failed:", error);
@@ -611,25 +618,32 @@
                     updateFinances();
                 }
 
-                document.getElementById('add-income')?.addEventListener('click', () => { document.getElementById('income-body').insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-desc"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-amount" step="0.01"></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); }); 
+                document.getElementById('add-income')?.addEventListener('click', () => { 
+                    const incomeBody = document.getElementById('income-body');
+                    const newIndex = incomeBody.rows.length;
+                    incomeBody.insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-desc"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-amount" step="0.01"></td><td class="p-1 text-center"><div class="file-input-wrapper"><button class="file-input-button">Anexar</button><input type="file" class="file-upload" data-type="income" data-index="${newIndex}" accept="image/*,.pdf"></div></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); 
+                }); 
+
                 document.getElementById('add-expense')?.addEventListener('click', () => { 
                     const expenseBody = document.getElementById('expense-body');
                     const newIndex = expenseBody.rows.length;
-                    expenseBody.insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-desc" data-index="${newIndex}"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-amount" step="0.01" data-index="${newIndex}"></td><td class="p-1 text-center"><div class="file-input-wrapper"><button class="file-input-button">Anexar</button><input type="file" class="receipt-upload" data-index="${newIndex}" accept="image/*,.pdf"></div></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); 
+                    expenseBody.insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-desc"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-amount" step="0.01"></td><td class="p-1 text-center"><div class="file-input-wrapper"><button class="file-input-button">Anexar</button><input type="file" class="file-upload" data-type="expense" data-index="${newIndex}" accept="image/*,.pdf"></div></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); 
                 }); 
+
                 document.getElementById('save-finances')?.addEventListener('click', () => { 
                     const newIncome = []; 
-                    document.querySelectorAll('#income-body tr').forEach((row) => { 
+                    document.querySelectorAll('#income-body tr').forEach((row, index) => { 
                         const description = row.querySelector('.income-desc').value; 
                         const amount = parseFloat(row.querySelector('.income-amount').value); 
-                        if(description && !isNaN(amount)) newIncome.push({ description, amount }); 
+                        const existingIncome = event.finances?.income?.[index];
+                        const proofUrl = existingIncome?.proofUrl || null;
+                        if(description && !isNaN(amount)) newIncome.push({ description, amount, proofUrl }); 
                     }); 
                     
                     const newExpenses = [];
                     document.querySelectorAll('#expense-body tr').forEach((row, index) => { 
                         const description = row.querySelector('.expense-desc').value; 
                         const amount = parseFloat(row.querySelector('.expense-amount').value); 
-                        // Try to preserve existing URL if available
                         const existingExpense = event.finances?.expenses?.[index];
                         const receiptUrl = existingExpense?.receiptUrl || null;
                         if(description && !isNaN(amount)) newExpenses.push({ description, amount, receiptUrl }); 
