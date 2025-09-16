@@ -225,6 +225,29 @@
             </div>
         </div>
     </div>
+    
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal pointer-events-none fixed w-full h-full top-0 left-0 flex items-center justify-center opacity-0">
+        <div id="delete-modal-overlay" class="absolute w-full h-full bg-gray-900 opacity-50"></div>
+        <div class="modal-container bg-white w-11/12 md:max-w-md mx-auto rounded-xl shadow-lg z-50">
+            <div class="modal-content py-6 text-left px-6">
+                <div class="flex justify-between items-center pb-3">
+                    <p class="text-2xl font-bold">Confirmar Exclusão</p>
+                    <div class="close-modal cursor-pointer z-50 p-2">
+                        <i class="fas fa-times text-2xl text-gray-500 hover:text-gray-800"></i>
+                    </div>
+                </div>
+                <div class="my-5">
+                    <p>Tem certeza que deseja excluir este evento?</p>
+                    <p class="text-sm text-gray-500 mt-2">Esta ação não pode ser desfeita.</p>
+                </div>
+                <div class="flex justify-end pt-4">
+                    <button class="close-modal bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg mr-2">Cancelar</button>
+                    <button id="confirm-delete-btn" class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-4 rounded-lg">Sim, Excluir</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
@@ -240,9 +263,8 @@
             
             // --- FIREBASE SETUP ---
             let auth, db, storage, userId;
+            let eventIdToDelete = null;
 
-            // This configuration object is now back in the code.
-            // It's safe to use as long as the API key is restricted in the Google Cloud Console.
             const firebaseConfig = {
                 apiKey: "AIzaSyBmGyAmYSQaaOVxOswSmGj3vJwwdRodnqI",
                 authDomain: "homens-a-mesa-95468.firebaseapp.com",
@@ -380,6 +402,7 @@
 
             const participantsModal = setupModal('participants-modal');
             const eventModal = setupModal('event-modal');
+            const deleteModal = setupModal('delete-modal');
 
             // --- PARTICIPANTS MODAL ---
             document.getElementById('participants-card').addEventListener('click', () => { renderParticipantsList(); participantsModal.open(); });
@@ -431,6 +454,21 @@
                 saveDataToFirestore();
                 eventModal.close();
             });
+            
+            // --- DELETE EVENT MODAL ---
+            document.getElementById('confirm-delete-btn').addEventListener('click', () => {
+                if (eventIdToDelete) {
+                    const eventIndex = eventsData.findIndex(e => e.id == eventIdToDelete);
+                    if (eventIndex > -1) {
+                        eventsData.splice(eventIndex, 1);
+                        saveDataToFirestore();
+                        showToast('Evento excluído com sucesso.');
+                    }
+                }
+                deleteModal.close();
+                eventIdToDelete = null;
+            });
+
 
             // --- RENDER DASHBOARD ---
             function renderDashboard() {
@@ -449,7 +487,21 @@
                          const monthGrid = document.createElement('div'); monthGrid.className = 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8';
                          groupedEvents[year][month].forEach(event => {
                             const card = document.createElement('div'); card.className = 'bg-white rounded-xl shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 flex flex-col'; card.dataset.eventId = event.id;
-                            card.innerHTML = `<div class="p-6 flex-grow"><div class="flex justify-between items-start"><p class="text-2xl font-bold text-gray-800">${formatDate(event.date)}</p><span class="${getBadgeStyles(event.type)} text-xs font-semibold px-3 py-1 rounded-full">${event.type}</span></div><p class="text-gray-600 mt-2 font-medium"><i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>${event.location}</p></div><div class="bg-gray-50 px-6 py-3 flex justify-between items-center"><button class="edit-event-btn text-gray-500 hover:text-blue-500"><i class="fas fa-edit"></i> Editar</button><a href="#" class="details-link text-blue-500 font-semibold text-sm">Ver Detalhes <i class="fas fa-arrow-right ml-1"></i></a></div>`;
+                            card.innerHTML = `
+                                <div class="p-6 flex-grow">
+                                    <div class="flex justify-between items-start">
+                                        <p class="text-2xl font-bold text-gray-800">${formatDate(event.date)}</p>
+                                        <span class="${getBadgeStyles(event.type)} text-xs font-semibold px-3 py-1 rounded-full">${event.type}</span>
+                                    </div>
+                                    <p class="text-gray-600 mt-2 font-medium"><i class="fas fa-map-marker-alt text-gray-400 mr-2"></i>${event.location}</p>
+                                </div>
+                                <div class="bg-gray-50 px-6 py-3 flex justify-between items-center">
+                                    <div class="flex items-center space-x-4">
+                                       <button class="edit-event-btn text-gray-500 hover:text-blue-500 text-sm"><i class="fas fa-edit mr-1"></i>Editar</button>
+                                       <button class="delete-event-btn text-gray-500 hover:text-red-500 text-sm"><i class="fas fa-trash mr-1"></i>Excluir</button>
+                                    </div>
+                                    <a href="#" class="details-link text-blue-500 font-semibold text-sm">Ver Detalhes <i class="fas fa-arrow-right ml-1"></i></a>
+                                </div>`;
                             card.querySelector('.details-link').addEventListener('click', (e) => { e.preventDefault(); showEventDetail(event.id); });
                             card.querySelector('.edit-event-btn').addEventListener('click', () => {
                                 document.getElementById('event-modal-title').textContent = 'Editar Evento';
@@ -458,6 +510,10 @@
                                 document.getElementById('event-type-input').value = event.type;
                                 document.getElementById('event-location-input').value = event.location;
                                 eventModal.open();
+                            });
+                            card.querySelector('.delete-event-btn').addEventListener('click', () => {
+                                eventIdToDelete = event.id;
+                                deleteModal.open();
                             });
                             monthGrid.appendChild(card);
                          });
