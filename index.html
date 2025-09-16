@@ -58,6 +58,29 @@
             overflow-x: hidden;
             overflow-y: hidden;
         }
+        /* Style for file input */
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-button {
+            border: 1px solid #ccc;
+            display: inline-block;
+            padding: 6px 12px;
+            cursor: pointer;
+            border-radius: 6px;
+            background-color: #f0f0f0;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .file-input-wrapper input[type=file] {
+            font-size: 100px;
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+        }
     </style>
 </head>
 <body class="antialiased text-gray-800">
@@ -204,22 +227,150 @@
     </div>
 
     <!-- Toast Notification -->
-    <div id="toast" class="toast">Dados salvos com sucesso!</div>
+    <div id="toast" class="toast"></div>
 
-    <script>
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+        import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
         document.addEventListener('DOMContentLoaded', function () {
-            // --- DATA ---
-            let participantsData = [
-                { id: 1, name: 'Marcos', phone: '21987654321' }, { id: 2, name: 'Pr Eric', phone: '' }, { id: 3, name: 'Lucas Porto', phone: '' }, { id: 4, name: 'Talisson', phone: '' }, { id: 5, name: 'Neander', phone: '' }, { id: 6, name: 'Alessandro (Rowena)', phone: '' }, { id: 7, name: 'Delcir', phone: '' }, { id: 8, name: 'Pedrinho', phone: '' },
-            ];
-
-            let eventsData = [
-                { id: 1, date: '2025-10-05', type: 'Homens à Mesa', location: 'Sítio em Monjolos', planning: "1. Definir o tema do encontro e o palestrante.\n2. Preparar o material de estudo e dinâmicas.\n3. Organizar a escala de louvor.\n4. Fazer a lista de compras detalhada.", tasks: [ { name: 'Confirmar com o Pr Eric a palavra', responsible: 'Marcos', status: 'Concluído' }, { name: 'Organizar louvor', responsible: 'Lucas Porto', status: 'Em andamento' }, { name: 'Fazer as compras (carne, bebidas, etc)', responsible: 'Alessandro', status: 'Pendente' }, { name: 'Ligar para os convidados para confirmar presença', responsible: 'Marcos', status: 'Pendente' } ], finances: { income: [ { description: 'Oferta inicial do ministério', amount: 200.00 } ], expenses: [ { description: 'Carvão e acendedores', amount: 35.50 } ] }, guests: ['Pr Eric', 'Lucas Porto', 'Talisson', 'Neander', 'Alessandro (Rowena)', 'Delcir', 'Pedrinho'], volunteers: ['Marcos', 'Neander (Churrasco)', 'Alessandro (Compras)'] },
-                { id: 2, date: '2025-11-15', type: 'Encontrão de Homens', location: 'Sítio em Tanguá', planning: "1. Divulgação massiva no púlpito e nos Grupos de Conexão (GCs).\n2. Organizar opções de transporte (caronas solidárias, van).\n3. Definir cardápio completo do churrasco e acompanhamentos.\n4. Planejar atividades de lazer e gincanas.", tasks: [], finances: { income: [], expenses: [] }, guests: ['Aberto para todos os homens da Igreja'], volunteers: [] },
-                { id: 3, date: '2025-12-07', type: 'Homens à Mesa', location: 'Sítio em Monjolos', planning: "", tasks: [], finances: { income: [], expenses: [] }, guests: [], volunteers: [] },
-            ];
             
-            // --- AUTO-GENERATE 2026 SCHEDULE ---
+            // ===============================================================================================
+            // AÇÃO NECESSÁRIA: CORRIJA AS CONFIGURAÇÕES DO FIREBASE
+            //
+            // Os erros "auth/configuration-not-found" e "Missing or insufficient permissions" indicam
+            // que seu projeto Firebase precisa de duas configurações manuais para funcionar.
+            // O código está correto, mas o acesso ao Firebase está bloqueado por segurança.
+            //
+            // SIGA ESTES PASSOS NO SEU PAINEL DO FIREBASE:
+            //
+            // PASSO 1: ATIVAR O LOGIN ANÔNIMO (Corrige 'auth/configuration-not-found')
+            //    - No menu, vá em: Authentication -> Aba "Sign-in method".
+            //    - Na lista, clique em "Anônimo".
+            //    - Ative a chave e clique em "Salvar".
+            //
+            // PASSO 2: ATUALIZAR AS REGRAS DE SEGURANÇA (Corrige 'Missing or insufficient permissions')
+            //    - a) Vá para "Firestore Database" -> Aba "Rules" (Regras).
+            //       - Substitua TUDO pelas regras abaixo e clique em "Publish" (Publicar):
+            //
+            //         rules_version = '2';
+            //         service cloud.firestore {
+            //           match /databases/{database}/documents {
+            //             match /homens-a-mesa-dados/{userId} {
+            //               allow read, write: if request.auth != null && request.auth.uid == userId;
+            //             }
+            //           }
+            //         }
+            //
+            //    - b) Vá para "Storage" -> Aba "Rules" (Regras).
+            //       - Substitua TUDO pelas regras abaixo e clique em "Publish" (Publicar):
+            //
+            //         rules_version = '2';
+            //         service firebase.storage {
+            //           match /b/{bucket}/o {
+            //             match /receipts/{userId}/{allPaths=**} {
+            //               allow read, write: if request.auth != null && request.auth.uid == userId;
+            //             }
+            //           }
+            //         }
+            //
+            // APÓS SEGUIR ESTES PASSOS, OS ERROS SERÃO RESOLVIDOS.
+            // ===============================================================================================
+
+            // --- FIREBASE SETUP ---
+            let auth, db, storage, userId;
+            
+            const firebaseConfig = {
+                apiKey: "AIzaSyBmGyAmYSQaaOVxOswSmGj3vJwwdRodnqI",
+                authDomain: "homens-a-mesa-95468.firebaseapp.com",
+                projectId: "homens-a-mesa-95468",
+                storageBucket: "homens-a-mesa-95468.appspot.com",
+                messagingSenderId: "296420733395",
+                appId: "1:296420733395:web:1d9f60bd1d92060022ff26",
+                measurementId: "G-BW6TQCLTMG"
+            };
+
+            try {
+                const app = initializeApp(firebaseConfig);
+                auth = getAuth(app);
+                db = getFirestore(app);
+                storage = getStorage(app);
+            } catch (e) {
+                console.error("Firebase initialization failed:", e);
+                showToast("Erro de conexão com o servidor.");
+                return;
+            }
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    // User is signed in.
+                    userId = user.uid;
+                    loadDataFromFirestore();
+                } else {
+                    // User is signed out. Attempt to sign in anonymously.
+                    try {
+                        await signInAnonymously(auth);
+                    } catch (error) {
+                        console.error("Anonymous sign-in failed:", error);
+                        showToast("Falha na autenticação. Verifique as configurações do Firebase.");
+                    }
+                }
+            });
+
+            // --- DATA ---
+            let participantsData = [];
+            let eventsData = [];
+
+            async function saveDataToFirestore() {
+                if (!userId) return;
+                const dataDocRef = doc(db, 'homens-a-mesa-dados', userId);
+                try {
+                    await setDoc(dataDocRef, { 
+                        participants: participantsData,
+                        events: eventsData
+                    });
+                } catch (error) {
+                    console.error("Error saving data: ", error);
+                    showToast("Erro ao salvar dados.");
+                }
+            }
+
+            function loadDataFromFirestore() {
+                if (!userId) return;
+                const dataDocRef = doc(db, 'homens-a-mesa-dados', userId);
+                
+                onSnapshot(dataDocRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        participantsData = data.participants || [];
+                        eventsData = data.events || [];
+                    } else {
+                        console.log("No data found, setting up default data.");
+                        initializeDefaultData();
+                        saveDataToFirestore(); 
+                    }
+                    renderDashboard();
+                }, (error) => {
+                    console.error("Error listening to data:", error);
+                    showToast("Erro de permissão. Verifique as Regras de Segurança do Firestore.");
+                });
+            }
+            
+            function initializeDefaultData() {
+                participantsData = [
+                    { id: 1, name: 'Marcos', phone: '21987654321' }, { id: 2, name: 'Pr Eric', phone: '' }, { id: 3, name: 'Lucas Porto', phone: '' }, { id: 4, name: 'Talisson', phone: '' }, { id: 5, name: 'Neander', phone: '' }, { id: 6, name: 'Alessandro (Rowena)', phone: '' }, { id: 7, name: 'Delcir', phone: '' }, { id: 8, name: 'Pedrinho', phone: '' },
+                ];
+                eventsData = [
+                    { id: 1, date: '2025-10-05', type: 'Homens à Mesa', location: 'Sítio em Monjolos', planning: "1. Definir o tema do encontro e o palestrante.\n2. Preparar o material de estudo e dinâmicas.\n3. Organizar a escala de louvor.\n4. Fazer a lista de compras detalhada.", tasks: [ { name: 'Confirmar com o Pr Eric a palavra', responsible: 'Marcos', status: 'Concluído' }, { name: 'Organizar louvor', responsible: 'Lucas Porto', status: 'Em andamento' }, { name: 'Fazer as compras (carne, bebidas, etc)', responsible: 'Alessandro', status: 'Pendente' }, { name: 'Ligar para os convidados para confirmar presença', responsible: 'Marcos', status: 'Pendente' } ], finances: { income: [ { description: 'Oferta inicial do ministério', amount: 200.00 } ], expenses: [ { description: 'Carvão e acendedores', amount: 35.50 } ] }, guests: ['Pr Eric', 'Lucas Porto', 'Talisson', 'Neander', 'Alessandro (Rowena)', 'Delcir', 'Pedrinho'], volunteers: ['Marcos', 'Neander (Churrasco)', 'Alessandro (Compras)'] },
+                    { id: 2, date: '2025-11-15', type: 'Encontrão de Homens', location: 'Sítio em Tanguá', planning: "1. Divulgação massiva no púlpito e nos Grupos de Conexão (GCs).\n2. Organizar opções de transporte (caronas solidárias, van).\n3. Definir cardápio completo do churrasco e acompanhamentos.\n4. Planejar atividades de lazer e gincanas.", tasks: [], finances: { income: [], expenses: [] }, guests: ['Aberto para todos os homens da Igreja'], volunteers: [] },
+                    { id: 3, date: '2025-12-07', type: 'Homens à Mesa', location: 'Sítio em Monjolos', planning: "", tasks: [], finances: { income: [], expenses: [] }, guests: [], volunteers: [] },
+                ];
+                generate2026Schedule();
+            }
+            
             function generate2026Schedule() {
                 const year = 2026;
                 const specialEvents = [
@@ -228,9 +379,7 @@
                     { month: 8, date: `${year}-09-20`, type: 'Culto de Homens', location: 'Igreja' }, // September
                     { month: 10, date: `${year}-11-15`, type: 'Encontrão de Homens', location: 'Sítio em Tanguá' }, // November
                 ];
-                
                 const specialEventMonths = specialEvents.map(e => e.month);
-
                 for (let month = 0; month < 12; month++) {
                     if (specialEventMonths.includes(month)) {
                         const eventData = specialEvents.find(e => e.month === month);
@@ -245,7 +394,6 @@
                     }
                 }
             }
-            generate2026Schedule();
 
 
             // --- DOM ELEMENTS ---
@@ -290,14 +438,14 @@
 
             participantsList.addEventListener('click', (e) => {
                 const id = parseInt(e.target.closest('tr').dataset.id);
-                if (e.target.closest('.delete-participant-btn')) { const index = participantsData.findIndex(p => p.id === id); if (index > -1) { participantsData.splice(index, 1); renderParticipantsList(); renderDashboard(); } }
+                if (e.target.closest('.delete-participant-btn')) { const index = participantsData.findIndex(p => p.id === id); if (index > -1) { participantsData.splice(index, 1); saveDataToFirestore(); } }
                 if (e.target.closest('.edit-participant-btn')) { const row = e.target.closest('tr'); const nameSpan = row.querySelector('.participant-name'); const phoneSpan = row.querySelector('.participant-phone'); row.querySelector('td:first-child').innerHTML = `<input type="text" value="${nameSpan.textContent}" class="w-full p-1 border rounded edit-name-input">`; row.querySelector('td:nth-child(2)').innerHTML = `<input type="text" value="${phoneSpan.textContent}" class="w-full p-1 border rounded edit-phone-input">`; row.querySelector('td:last-child').innerHTML = `<button class="text-green-500 hover:text-green-700 save-participant-btn"><i class="fas fa-check"></i></button>`; }
-                if (e.target.closest('.save-participant-btn')) { const row = e.target.closest('tr'); const newName = row.querySelector('.edit-name-input').value; const newPhone = row.querySelector('.edit-phone-input').value; const participant = participantsData.find(p => p.id === id); if (participant && newName) { participant.name = newName; participant.phone = newPhone; renderParticipantsList(); } }
+                if (e.target.closest('.save-participant-btn')) { const row = e.target.closest('tr'); const newName = row.querySelector('.edit-name-input').value; const newPhone = row.querySelector('.edit-phone-input').value; const participant = participantsData.find(p => p.id === id); if (participant && newName) { participant.name = newName; participant.phone = newPhone; saveDataToFirestore(); } }
             });
 
             document.getElementById('add-participant-btn').addEventListener('click', () => {
                 const nameInput = document.getElementById('new-participant-name'); const phoneInput = document.getElementById('new-participant-phone');
-                if (nameInput.value.trim()) { participantsData.push({ id: Date.now(), name: nameInput.value.trim(), phone: phoneInput.value.trim() }); nameInput.value = ''; phoneInput.value = ''; renderParticipantsList(); renderDashboard(); }
+                if (nameInput.value.trim()) { participantsData.push({ id: Date.now(), name: nameInput.value.trim(), phone: phoneInput.value.trim() }); saveDataToFirestore(); nameInput.value = ''; phoneInput.value = ''; }
             });
 
             // --- EVENT MODAL ---
@@ -316,20 +464,20 @@
                 const type = document.getElementById('event-type-input').value;
                 const location = document.getElementById('event-location-input').value;
                 if (!date || !type || !location) { alert('Por favor, preencha todos os campos.'); return; }
-                if (id) { // Editing existing
+                if (id) {
                     const event = eventsData.find(e => e.id == id);
                     if (event) { event.date = date; event.type = type; event.location = location; }
-                } else { // Adding new
+                } else {
                     eventsData.push({ id: Date.now(), date, type, location, planning: "", tasks: [], finances: { income: [], expenses: [] }, guests: [], volunteers: [] });
                 }
-                renderDashboard();
+                saveDataToFirestore();
                 eventModal.close();
             });
 
-
             // --- RENDER DASHBOARD ---
             function renderDashboard() {
-                let totalIncome = 0, totalExpenses = 0; eventsData.forEach(event => { totalIncome += event.finances.income.reduce((sum, item) => sum + item.amount, 0); totalExpenses += event.finances.expenses.reduce((sum, item) => sum + item.amount, 0); });
+                if (!eventsData || !participantsData) return;
+                let totalIncome = 0, totalExpenses = 0; eventsData.forEach(event => { totalIncome += (event.finances?.income || []).reduce((sum, item) => sum + item.amount, 0); totalExpenses += (event.finances?.expenses || []).reduce((sum, item) => sum + item.amount, 0); });
                 document.getElementById('total-balance').textContent = `R$ ${(totalIncome - totalExpenses).toFixed(2).replace('.', ',')}`;
                 document.getElementById('total-participants').textContent = participantsData.length;
                 
@@ -362,18 +510,143 @@
             }
 
             // --- RENDER EVENT DETAIL & EDITING LOGIC ---
-            function showEventDetail(eventId) { const event = eventsData.find(e => e.id === eventId); if (!event) return; tabContentContainer.dataset.eventId = eventId; document.getElementById('event-title').textContent = `${event.type} - ${formatDate(event.date)}`; document.getElementById('event-date-location').textContent = event.location; const badge = document.getElementById('event-type-badge'); badge.textContent = event.type; badge.className = `mt-4 md:mt-0 text-sm font-medium px-4 py-2 rounded-full ${getBadgeStyles(event.type)}`; const tabsContainer = document.getElementById('tabs'); tabsContainer.innerHTML = ''; tabContentContainer.innerHTML = ''; const tabs = [ { id: 'planning', name: 'Planejamento', icon: 'fa-clipboard-list' }, { id: 'tasks', name: 'Divisão de Tarefas', icon: 'fa-tasks' }, { id: 'finances', name: 'Controle Financeiro', icon: 'fa-dollar-sign' }, { id: 'people', name: 'Convidados e Voluntários', icon: 'fa-users' } ]; tabs.forEach((tab, index) => { const button = document.createElement('a'); button.href = '#'; button.className = `tab-button text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm md:text-base mr-2 md:mr-4 ${index === 0 ? 'active' : ''}`; button.innerHTML = `<i class="fas ${tab.icon} mr-2"></i>${tab.name}`; button.dataset.tabId = tab.id; tabsContainer.appendChild(button); const contentPane = document.createElement('div'); contentPane.id = `content-${tab.id}`; contentPane.className = `p-2 ${index !== 0 ? 'hidden' : ''}`; contentPane.innerHTML = generateTabContent(tab.id, event); tabContentContainer.appendChild(contentPane); }); document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', (e) => { e.preventDefault(); const tabId = e.currentTarget.dataset.tabId; document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active')); e.currentTarget.classList.add('active'); document.querySelectorAll('#tab-content > div').forEach(pane => pane.classList.add('hidden')); document.getElementById(`content-${tabId}`).classList.remove('hidden'); })); setupEventListeners(event); dashboardView.classList.add('hidden'); eventDetailView.classList.remove('hidden'); }
-            function generateTabContent(tabId, event) { const i = "w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition", s = "bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300", a = "bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none"; switch (tabId) { case 'planning': return `<h3 class="text-xl font-semibold mb-4 text-gray-700">Planejamento e Plano de Ação</h3><textarea id="planning-input" class="${i}" rows="10">${event.planning}</textarea><div class="text-right mt-4"><button id="save-planning" class="${s}">Salvar Planejamento</button></div>`; case 'tasks': let t = `<h3 class="text-xl font-semibold mb-4 text-gray-700">Divisão de Tarefas</h3><div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-3">Tarefa</th><th class="p-3">Responsável</th><th class="p-3">Status</th><th class="p-3">Ação</th></tr></thead><tbody id="tasks-body">`; return event.tasks.forEach(e => { t += `<tr><td class="p-2"><input type="text" value="${e.name}" class="${i} task-name"></td><td class="p-2"><input type="text" value="${e.responsible}" class="${i} task-responsible"></td><td class="p-2"><select class="${i} task-status"><option ${"Pendente"===e.status?"selected":""}>Pendente</option><option ${"Em andamento"===e.status?"selected":""}>Em andamento</option><option ${"Concluído"===e.status?"selected":""}>Concluído</option></select></td><td class="p-2 text-center"><button class="${a} remove-btn">&times;</button></td></tr>` }), t += `</tbody></table></div><div class="mt-4 flex justify-between items-center"><button id="add-task" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg">+ Adicionar Tarefa</button><button id="save-tasks" class="${s}">Salvar Tarefas</button></div>`, t; case 'finances': return `<div class="grid grid-cols-1 md:grid-cols-2 gap-8" id="finances-container"><div><h3 class="text-xl font-semibold mb-4 text-gray-700 flex justify-between items-center">Entradas <button id="add-income" class="text-sm bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded-full">+</button></h3><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-2">Descrição</th><th class="p-2">Valor (R$)</th><th class="p-2"></th></tr></thead><tbody id="income-body">${event.finances.income.map(e=>`<tr><td class="p-1"><input type="text" value="${e.description}" class="${i} income-desc"></td><td class="p-1"><input type="number" value="${e.amount.toFixed(2)}" class="${i} income-amount" step="0.01"></td><td class="p-1 text-center"><button class="${a} remove-btn">&times;</button></td></tr>`).join("")}</tbody></table></div><div><h3 class="text-xl font-semibold mb-4 text-gray-700 flex justify-between items-center">Saídas <button id="add-expense" class="text-sm bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full">+</button></h3><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-2">Descrição</th><th class="p-2">Valor (R$)</th><th class="p-2"></th></tr></thead><tbody id="expense-body">${event.finances.expenses.map(e=>`<tr><td class="p-1"><input type="text" value="${e.description}" class="${i} expense-desc"></td><td class="p-1"><input type="number" value="${e.amount.toFixed(2)}" class="${i} expense-amount" step="0.01"></td><td class="p-1 text-center"><button class="${a} remove-btn">&times;</button></td></tr>`).join("")}</tbody></table></div></div><div class="mt-8 pt-4 border-t text-right" id="finance-summary"><h3 class="text-2xl font-bold">Saldo do Evento: <span id="event-balance">R$ 0,00</span></h3></div><div class="text-right mt-4"><button id="save-finances" class="${s}">Salvar Finanças</button></div>`; case 'people': return `<div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div><h3 class="text-xl font-semibold mb-4 text-gray-700">Lista de Convidados</h3><div id="guests-list" class="space-y-2">${event.guests.map(e=>`<div class="flex items-center"><input type="text" class="${i} guest-name" value="${e}"><button class="ml-2 ${a} remove-btn">&times;</button></div>`).join("")}</div><div class="mt-2 flex"><input type="text" id="new-guest-input" placeholder="Novo convidado" class="${i}"><button id="add-guest" class="ml-2 bg-gray-200 hover:bg-gray-300 px-3 rounded-lg">+</button></div></div><div><h3 class="text-xl font-semibold mb-4 text-gray-700">Lista de Voluntários</h3><div id="volunteers-list" class="space-y-2">${event.volunteers.map(e=>`<div class="flex items-center"><input type="text" class="${i} volunteer-name" value="${e}"><button class="ml-2 ${a} remove-btn">&times;</button></div>`).join("")}</div><div class="mt-2 flex"><input type="text" id="new-volunteer-input" placeholder="Novo voluntário" class="${i}"><button id="add-volunteer" class="ml-2 bg-gray-200 hover:bg-gray-300 px-3 rounded-lg">+</button></div></div></div><div class="text-right mt-4"><button id="save-people" class="${s}">Salvar Listas</button></div>`; default: return "Conteúdo não encontrado." } }
-            function setupEventListeners(event) { tabContentContainer.addEventListener('click', e => { if (e.target.classList.contains('remove-btn')) e.target.parentElement.parentElement.remove(); }); document.getElementById('save-planning')?.addEventListener('click', () => { event.planning = document.getElementById('planning-input').value; showToast('Planejamento salvo!'); }); document.getElementById('add-task')?.addEventListener('click', () => { document.getElementById('tasks-body').insertRow().innerHTML = `<tr><td class="p-2"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition task-name"></td><td class="p-2"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition task-responsible"></td><td class="p-2"><select class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition task-status"><option>Pendente</option><option>Em andamento</option><option>Concluído</option></select></td><td class="p-2 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`; }); document.getElementById('save-tasks')?.addEventListener('click', () => { const newTasks = []; document.querySelectorAll('#tasks-body tr').forEach(row => { const name = row.querySelector('.task-name').value; const responsible = row.querySelector('.task-responsible').value; const status = row.querySelector('.task-status').value; if(name) newTasks.push({ name, responsible, status }); }); event.tasks = newTasks; showToast('Tarefas salvas!'); }); const updateFinances = () => { let income = 0, expenses = 0; document.querySelectorAll('.income-amount').forEach(i => income += parseFloat(i.value) || 0); document.querySelectorAll('.expense-amount').forEach(e => expenses += parseFloat(e.value) || 0); const balance = income - expenses; const balanceEl = document.getElementById('event-balance'); balanceEl.textContent = `R$ ${balance.toFixed(2).replace('.', ',')}`; balanceEl.className = balance >= 0 ? 'text-green-600' : 'text-red-600'; }; document.getElementById('finances-container')?.addEventListener('input', updateFinances); document.getElementById('add-income')?.addEventListener('click', () => { document.getElementById('income-body').insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-desc"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-amount" step="0.01"></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); }); document.getElementById('add-expense')?.addEventListener('click', () => { document.getElementById('expense-body').insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-desc"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-amount" step="0.01"></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); }); document.getElementById('save-finances')?.addEventListener('click', () => { const newIncome = []; document.querySelectorAll('#income-body tr').forEach(row => { const description = row.querySelector('.income-desc').value; const amount = parseFloat(row.querySelector('.income-amount').value); if(description && !isNaN(amount)) newIncome.push({ description, amount }); }); event.finances.income = newIncome; const newExpenses = []; document.querySelectorAll('#expense-body tr').forEach(row => { const description = row.querySelector('.expense-desc').value; const amount = parseFloat(row.querySelector('.expense-amount').value); if(description && !isNaN(amount)) newExpenses.push({ description, amount }); }); event.finances.expenses = newExpenses; showToast('Finanças salvas!'); renderDashboard(); }); updateFinances(); const addToList = (listId, inputId) => { const input = document.getElementById(inputId); const list = document.getElementById(listId); if(input.value.trim()){ list.insertAdjacentHTML('beforeend', `<div class="flex items-center"><input type="text" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition ${listId === 'guests-list' ? 'guest-name' : 'volunteer-name'}" value="${input.value.trim()}"><button class="ml-2 bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></div>`); input.value = ''; } }; document.getElementById('add-guest')?.addEventListener('click', () => addToList('guests-list', 'new-guest-input')); document.getElementById('add-volunteer')?.addEventListener('click', () => addToList('volunteers-list', 'new-volunteer-input')); document.getElementById('save-people')?.addEventListener('click', () => { const newGuests = []; document.querySelectorAll('.guest-name').forEach(i => { if(i.value.trim()) newGuests.push(i.value.trim()); }); event.guests = newGuests; const newVolunteers = []; document.querySelectorAll('.volunteer-name').forEach(i => { if(i.value.trim()) newVolunteers.push(i.value.trim()); }); event.volunteers = newVolunteers; showToast('Listas salvas!'); renderDashboard(); }); }
+            function showEventDetail(eventId) { const event = eventsData.find(e => e.id == eventId); if (!event) return; tabContentContainer.dataset.eventId = eventId; document.getElementById('event-title').textContent = `${event.type} - ${formatDate(event.date)}`; document.getElementById('event-date-location').textContent = event.location; const badge = document.getElementById('event-type-badge'); badge.textContent = event.type; badge.className = `mt-4 md:mt-0 text-sm font-medium px-4 py-2 rounded-full ${getBadgeStyles(event.type)}`; const tabsContainer = document.getElementById('tabs'); tabsContainer.innerHTML = ''; tabContentContainer.innerHTML = ''; const tabs = [ { id: 'planning', name: 'Planejamento', icon: 'fa-clipboard-list' }, { id: 'tasks', name: 'Divisão de Tarefas', icon: 'fa-tasks' }, { id: 'finances', name: 'Controle Financeiro', icon: 'fa-dollar-sign' }, { id: 'people', name: 'Convidados e Voluntários', icon: 'fa-users' } ]; tabs.forEach((tab, index) => { const button = document.createElement('a'); button.href = '#'; button.className = `tab-button text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm md:text-base mr-2 md:mr-4 ${index === 0 ? 'active' : ''}`; button.innerHTML = `<i class="fas ${tab.icon} mr-2"></i>${tab.name}`; button.dataset.tabId = tab.id; tabsContainer.appendChild(button); const contentPane = document.createElement('div'); contentPane.id = `content-${tab.id}`; contentPane.className = `p-2 ${index !== 0 ? 'hidden' : ''}`; contentPane.innerHTML = generateTabContent(tab.id, event); tabContentContainer.appendChild(contentPane); }); document.querySelectorAll('.tab-button').forEach(button => button.addEventListener('click', (e) => { e.preventDefault(); const tabId = e.currentTarget.dataset.tabId; document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active')); e.currentTarget.classList.add('active'); document.querySelectorAll('#tab-content > div').forEach(pane => pane.classList.add('hidden')); document.getElementById(`content-${tabId}`).classList.remove('hidden'); })); setupEventListeners(event); dashboardView.classList.add('hidden'); eventDetailView.classList.remove('hidden'); }
+            
+            function generateTabContent(tabId, event) {
+                const i = "w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition", s = "bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300", a = "bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none";
+                switch (tabId) {
+                    case 'planning': return `<h3 class="text-xl font-semibold mb-4 text-gray-700">Planejamento e Plano de Ação</h3><textarea id="planning-input" class="${i}" rows="10">${event.planning || ''}</textarea><div class="text-right mt-4"><button id="save-planning" class="${s}">Salvar Planejamento</button></div>`;
+                    case 'tasks':
+                        let tasksHtml = `<h3 class="text-xl font-semibold mb-4 text-gray-700">Divisão de Tarefas</h3><div class="overflow-x-auto"><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-3">Tarefa</th><th class="p-3">Responsável</th><th class="p-3">Status</th><th class="p-3">Ação</th></tr></thead><tbody id="tasks-body">`;
+                        (event.tasks || []).forEach(task => { tasksHtml += `<tr><td class="p-2"><input type="text" value="${task.name}" class="${i} task-name"></td><td class="p-2"><input type="text" value="${task.responsible}" class="${i} task-responsible"></td><td class="p-2"><select class="${i} task-status"><option ${task.status === "Pendente" ? "selected" : ""}>Pendente</option><option ${task.status === "Em andamento" ? "selected" : ""}>Em andamento</option><option ${task.status === "Concluído" ? "selected" : ""}>Concluído</option></select></td><td class="p-2 text-center"><button class="${a} remove-btn">&times;</button></td></tr>`; });
+                        return tasksHtml + `</tbody></table></div><div class="mt-4 flex justify-between items-center"><button id="add-task" class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-4 rounded-lg">+ Adicionar Tarefa</button><button id="save-tasks" class="${s}">Salvar Tarefas</button></div>`;
+                    case 'finances':
+                        const incomeRows = (event.finances?.income || []).map((item, index) => `<tr><td class="p-1"><input type="text" value="${item.description}" class="${i} income-desc" data-index="${index}"></td><td class="p-1"><input type="number" value="${item.amount.toFixed(2)}" class="${i} income-amount" step="0.01" data-index="${index}"></td><td class="p-1 text-center"><button class="${a} remove-btn" data-type="income" data-index="${index}">&times;</button></td></tr>`).join("");
+                        const expenseRows = (event.finances?.expenses || []).map((item, index) => `
+                            <tr>
+                                <td class="p-1"><input type="text" value="${item.description}" class="${i} expense-desc" data-index="${index}"></td>
+                                <td class="p-1"><input type="number" value="${item.amount.toFixed(2)}" class="${i} expense-amount" step="0.01" data-index="${index}"></td>
+                                <td class="p-1 text-center">
+                                    ${item.receiptUrl ? `<a href="${item.receiptUrl}" target="_blank" class="bg-blue-500 text-white text-xs px-2 py-1 rounded">Ver Recibo</a>` : 
+                                    `<div class="file-input-wrapper">
+                                        <button class="file-input-button">Anexar</button>
+                                        <input type="file" class="receipt-upload" data-index="${index}" accept="image/*,.pdf">
+                                    </div>`}
+                                </td>
+                                <td class="p-1 text-center"><button class="${a} remove-btn" data-type="expense" data-index="${index}">&times;</button></td>
+                            </tr>`).join("");
+
+                        return `<div class="grid grid-cols-1 md:grid-cols-2 gap-8" id="finances-container">
+                                <div><h3 class="text-xl font-semibold mb-4 text-gray-700 flex justify-between items-center">Entradas <button id="add-income" class="text-sm bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-2 rounded-full">+</button></h3><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-2">Descrição</th><th class="p-2">Valor (R$)</th><th class="p-2"></th></tr></thead><tbody id="income-body">${incomeRows}</tbody></table></div>
+                                <div><h3 class="text-xl font-semibold mb-4 text-gray-700 flex justify-between items-center">Saídas <button id="add-expense" class="text-sm bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full">+</button></h3><table class="w-full text-left"><thead class="bg-gray-100"><tr><th class="p-2">Descrição</th><th class="p-2">Valor (R$)</th><th class="p-2">Anexo</th><th class="p-2"></th></tr></thead><tbody id="expense-body">${expenseRows}</tbody></table></div>
+                            </div>
+                            <div class="mt-8 pt-4 border-t text-right" id="finance-summary"><h3 class="text-2xl font-bold">Saldo do Evento: <span id="event-balance">R$ 0,00</span></h3></div>
+                            <div class="text-right mt-4"><button id="save-finances" class="${s}">Salvar Finanças</button></div>`;
+                    case 'people': return `<div class="grid grid-cols-1 md:grid-cols-2 gap-8"><div><h3 class="text-xl font-semibold mb-4 text-gray-700">Lista de Convidados</h3><div id="guests-list" class="space-y-2">${(event.guests || []).map(g=>`<div class="flex items-center"><input type="text" class="${i} guest-name" value="${g}"><button class="ml-2 ${a} remove-btn">&times;</button></div>`).join("")}</div><div class="mt-2 flex"><input type="text" id="new-guest-input" placeholder="Novo convidado" class="${i}"><button id="add-guest" class="ml-2 bg-gray-200 hover:bg-gray-300 px-3 rounded-lg">+</button></div></div><div><h3 class="text-xl font-semibold mb-4 text-gray-700">Lista de Voluntários</h3><div id="volunteers-list" class="space-y-2">${(event.volunteers || []).map(v=>`<div class="flex items-center"><input type="text" class="${i} volunteer-name" value="${v}"><button class="ml-2 ${a} remove-btn">&times;</button></div>`).join("")}</div><div class="mt-2 flex"><input type="text" id="new-volunteer-input" placeholder="Novo voluntário" class="${i}"><button id="add-volunteer" class="ml-2 bg-gray-200 hover:bg-gray-300 px-3 rounded-lg">+</button></div></div></div><div class="text-right mt-4"><button id="save-people" class="${s}">Salvar Listas</button></div>`;
+                    default: return "Conteúdo não encontrado."
+                }
+            }
+
+            function setupEventListeners(event) { 
+                tabContentContainer.addEventListener('click', e => { if (e.target.classList.contains('remove-btn') || e.target.parentElement.classList.contains('remove-btn')) { e.target.closest('tr, .flex').remove(); } }); 
+                document.getElementById('save-planning')?.addEventListener('click', () => { event.planning = document.getElementById('planning-input').value; showToast('Planejamento salvo!'); saveDataToFirestore(); }); 
+                document.getElementById('add-task')?.addEventListener('click', () => { document.getElementById('tasks-body').insertRow().innerHTML = `<tr><td class="p-2"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition task-name"></td><td class="p-2"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition task-responsible"></td><td class="p-2"><select class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition task-status"><option>Pendente</option><option>Em andamento</option><option>Concluído</option></select></td><td class="p-2 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`; }); 
+                document.getElementById('save-tasks')?.addEventListener('click', () => { const newTasks = []; document.querySelectorAll('#tasks-body tr').forEach(row => { const name = row.querySelector('.task-name').value; const responsible = row.querySelector('.task-responsible').value; const status = row.querySelector('.task-status').value; if(name) newTasks.push({ name, responsible, status }); }); event.tasks = newTasks; showToast('Tarefas salvas!'); saveDataToFirestore(); }); 
+                
+                const financeContainer = document.getElementById('finances-container');
+                if(financeContainer) {
+                    const updateFinances = () => { let income = 0, expenses = 0; document.querySelectorAll('.income-amount').forEach(i => income += parseFloat(i.value) || 0); document.querySelectorAll('.expense-amount').forEach(e => expenses += parseFloat(e.value) || 0); const balance = income - expenses; const balanceEl = document.getElementById('event-balance'); balanceEl.textContent = `R$ ${balance.toFixed(2).replace('.', ',')}`; balanceEl.className = balance >= 0 ? 'text-green-600' : 'text-red-600'; };
+                    financeContainer.addEventListener('input', updateFinances);
+                    financeContainer.addEventListener('change', async (e) => {
+                        if (e.target.classList.contains('receipt-upload')) {
+                            const file = e.target.files[0];
+                            const index = e.target.dataset.index;
+                            if (!file) return;
+
+                            // Ensure the expense item exists
+                            if (!event.finances) event.finances = { income: [], expenses: [] };
+                            while (event.finances.expenses.length <= index) {
+                                event.finances.expenses.push({ description: '', amount: 0, receiptUrl: null });
+                            }
+                            if(!event.finances.expenses[index]) event.finances.expenses[index] = { description: '', amount: 0, receiptUrl: null };
+
+
+                            const button = e.target.previousElementSibling;
+                            button.textContent = 'Enviando...';
+                            button.disabled = true;
+
+                            const filePath = `receipts/${userId}/${event.id}/${Date.now()}_${file.name}`;
+                            const storageRef = ref(storage, filePath);
+                            
+                            try {
+                                const snapshot = await uploadBytes(storageRef, file);
+                                const downloadURL = await getDownloadURL(snapshot.ref);
+                                
+                                event.finances.expenses[index].receiptUrl = downloadURL;
+                                await saveDataToFirestore();
+                                showToast('Recibo enviado com sucesso!');
+                                showEventDetail(event.id); // Refresh the view to show the link
+                            } catch (error) {
+                                console.error("Upload failed:", error);
+                                showToast("Falha no upload.");
+                                button.textContent = 'Anexar';
+                                button.disabled = false;
+                            }
+                        }
+                    });
+                    updateFinances();
+                }
+
+                document.getElementById('add-income')?.addEventListener('click', () => { document.getElementById('income-body').insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-desc"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition income-amount" step="0.01"></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); }); 
+                document.getElementById('add-expense')?.addEventListener('click', () => { 
+                    const expenseBody = document.getElementById('expense-body');
+                    const newIndex = expenseBody.rows.length;
+                    expenseBody.insertAdjacentHTML('beforeend', `<tr><td class="p-1"><input type="text" value="" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-desc" data-index="${newIndex}"></td><td class="p-1"><input type="number" value="0.00" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition expense-amount" step="0.01" data-index="${newIndex}"></td><td class="p-1 text-center"><div class="file-input-wrapper"><button class="file-input-button">Anexar</button><input type="file" class="receipt-upload" data-index="${newIndex}" accept="image/*,.pdf"></div></td><td class="p-1 text-center"><button class="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></td></tr>`); 
+                }); 
+                document.getElementById('save-finances')?.addEventListener('click', () => { 
+                    const newIncome = []; 
+                    document.querySelectorAll('#income-body tr').forEach((row) => { 
+                        const description = row.querySelector('.income-desc').value; 
+                        const amount = parseFloat(row.querySelector('.income-amount').value); 
+                        if(description && !isNaN(amount)) newIncome.push({ description, amount }); 
+                    }); 
+                    
+                    const newExpenses = [];
+                    document.querySelectorAll('#expense-body tr').forEach((row, index) => { 
+                        const description = row.querySelector('.expense-desc').value; 
+                        const amount = parseFloat(row.querySelector('.expense-amount').value); 
+                        // Try to preserve existing URL if available
+                        const existingExpense = event.finances?.expenses?.[index];
+                        const receiptUrl = existingExpense?.receiptUrl || null;
+                        if(description && !isNaN(amount)) newExpenses.push({ description, amount, receiptUrl }); 
+                    }); 
+                    
+                    if(!event.finances) event.finances = {};
+                    event.finances.income = newIncome; 
+                    event.finances.expenses = newExpenses; 
+
+                    showToast('Finanças salvas!'); 
+                    saveDataToFirestore(); 
+                }); 
+                
+                const addToList = (listId, inputId) => { const input = document.getElementById(inputId); const list = document.getElementById(listId); if(input.value.trim()){ list.insertAdjacentHTML('beforeend', `<div class="flex items-center"><input type="text" class="w-full p-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-300 focus:border-blue-500 transition ${listId === 'guests-list' ? 'guest-name' : 'volunteer-name'}" value="${input.value.trim()}"><button class="ml-2 bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-2 rounded-full text-xs leading-none remove-btn">&times;</button></div>`); input.value = ''; } }; 
+                document.getElementById('add-guest')?.addEventListener('click', () => addToList('guests-list', 'new-guest-input')); 
+                document.getElementById('add-volunteer')?.addEventListener('click', () => addToList('volunteers-list', 'new-volunteer-input')); 
+                document.getElementById('save-people')?.addEventListener('click', () => { 
+                    const newGuests = []; document.querySelectorAll('.guest-name').forEach(i => { if(i.value.trim()) newGuests.push(i.value.trim()); }); 
+                    event.guests = newGuests; 
+                    const newVolunteers = []; document.querySelectorAll('.volunteer-name').forEach(i => { if(i.value.trim()) newVolunteers.push(i.value.trim()); }); 
+                    event.volunteers = newVolunteers; 
+                    showToast('Listas salvas!'); 
+                    saveDataToFirestore(); 
+                }); 
+            }
 
             // --- EVENT LISTENERS ---
             backButton.addEventListener('click', renderDashboard);
 
-            // --- INITIALIZATION ---
-            renderDashboard();
         });
     </script>
-
 </body>
 </html>
 
