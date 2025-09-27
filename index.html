@@ -265,8 +265,10 @@
             let auth, db, storage, userId;
             let eventIdToDelete = null;
 
+            // This configuration object is safe to be public as long as the API key is restricted
+            // in the Google Cloud Console, and your Firebase Security Rules are correctly configured.
             const firebaseConfig = {
-                apiKey: "AIzaSyBmGyAmYSQaaOVxOswSmGj3vJwwdRodnqI",
+                apiKey: "AIzaSyDBxj_5xrzId1YdcM0NAfOHv6ou7mnYljY",
                 authDomain: "homens-a-mesa-95468.firebaseapp.com",
                 projectId: "homens-a-mesa-95468",
                 storageBucket: "homens-a-mesa-95468.appspot.com",
@@ -341,12 +343,11 @@
             
             function initializeDefaultData() {
                 participantsData = [
-                    { id: 1, name: 'Marcos', phone: '21987654321' }, { id: 2, name: 'Pr Eric', phone: '' }, { id: 3, name: 'Lucas Porto', phone: '' }, { id: 4, name: 'Talisson', phone: '' }, { id: 5, name: 'Neander', phone: '' }, { id: 6, name: 'Alessandro (Rowena)', phone: '' }, { id: 7, name: 'Delcir', phone: '' }, { id: 8, name: 'Pedrinho', phone: '' },
+                    { id: Date.now() + 1, name: 'Marcos', phone: '21987654321' }, { id: Date.now() + 2, name: 'Pr Eric', phone: '' },
                 ];
                 eventsData = [
-                    { id: 1, date: '2025-10-05', type: 'Homens à Mesa', location: 'Sítio em Monjolos', planning: "1. Definir o tema do encontro e o palestrante.\n2. Preparar o material de estudo e dinâmicas.\n3. Organizar a escala de louvor.\n4. Fazer a lista de compras detalhada.", tasks: [ { name: 'Confirmar com o Pr Eric a palavra', responsible: 'Marcos', status: 'Concluído' }, { name: 'Organizar louvor', responsible: 'Lucas Porto', status: 'Em andamento' }, { name: 'Fazer as compras (carne, bebidas, etc)', responsible: 'Alessandro', status: 'Pendente' }, { name: 'Ligar para os convidados para confirmar presença', responsible: 'Marcos', status: 'Pendente' } ], finances: { income: [ { description: 'Oferta inicial do ministério', amount: 200.00 } ], expenses: [ { description: 'Carvão e acendedores', amount: 35.50 } ] }, guests: ['Pr Eric', 'Lucas Porto', 'Talisson', 'Neander', 'Alessandro (Rowena)', 'Delcir', 'Pedrinho'], volunteers: ['Marcos', 'Neander (Churrasco)', 'Alessandro (Compras)'] },
-                    { id: 2, date: '2025-11-15', type: 'Encontrão de Homens', location: 'Sítio em Tanguá', planning: "1. Divulgação massiva no púlpito e nos Grupos de Conexão (GCs).\n2. Organizar opções de transporte (caronas solidárias, van).\n3. Definir cardápio completo do churrasco e acompanhamentos.\n4. Planejar atividades de lazer e gincanas.", tasks: [], finances: { income: [], expenses: [] }, guests: ['Aberto para todos os homens da Igreja'], volunteers: [] },
-                    { id: 3, date: '2025-12-07', type: 'Homens à Mesa', location: 'Sítio em Monjolos', planning: "", tasks: [], finances: { income: [], expenses: [] }, guests: [], volunteers: [] },
+                    { id: Date.now() + 10, date: '2025-10-05', type: 'Homens à Mesa', location: 'Sítio em Monjolos', planning: "", tasks: [], finances: { income: [], expenses: [] }, guests: [], volunteers: [] },
+                    { id: Date.now() + 11, date: '2025-11-15', type: 'Encontrão de Homens', location: 'Sítio em Tanguá', planning: "", tasks: [], finances: { income: [], expenses: [] }, guests: [], volunteers: [] },
                 ];
                 generate2026Schedule();
             }
